@@ -1,4 +1,5 @@
 import java.io.IOException;
+import java.util.EnumSet;
 
 import javax.smartcardio.TerminalFactory;
 import javax.smartcardio.CardTerminal;
@@ -13,13 +14,13 @@ import apdu4j.HexUtils;
 import apdu4j.CommandAPDU;
 import apdu4j.ResponseAPDU;
 
+import pro.javacard.gp.GPSession.APDUMode;
+import pro.javacard.gp.GPSession.GPSpec;
 import pro.javacard.AID;
 import pro.javacard.gp.*;
 
 public class App
 {
-    // final GPSession gp;
-
     public static void main(String args[]) throws CardException, IOException
     {
         System.out.println("---begin---");
@@ -45,57 +46,45 @@ public class App
         Card card;
         APDUBIBO channel = null;
 
-        // Establish connection
         try {
             card = reader.connect("*");
-            // We use apdu4j which by default uses jnasmartcardio
-            // which uses real SCardBeginTransaction
             card.beginExclusive();
             channel = CardChannelBIBO.getBIBO(card.getBasicChannel());
-            /*
-            System.out.println("Reader: " + reader.getName());
-            System.out.println("ATR: " +
-            HexUtils.bin2hex(card.getATR().getBytes()));
-            System.out.println("More information about your card:");
-            System.out.println("    http://smartcard-atr.appspot.com/parse?ATR="
-            + HexUtils.bin2hex(card.getATR().getBytes())); System.out.println();
-            */
         } catch (CardException e) {
             System.err.println("Could not connect to " + reader.getName() + ": "
                                + TerminalManager.getExceptionMessage(e));
-            // continue;
-            // break;
             return;
         }
 
-        AID target = AID.fromString("F76964706173730101000101");
+        AID authaid = AID.fromString("F76964706173730101000101");
+        AID cmaid = AID.fromString("A000000151000000");
 
+        // 1) select AUTH applet
         ResponseAPDU r = channel.transmit(new CommandAPDU(
-            0x00, ISO7816.INS_SELECT, 0x04, 0x00, target.getBytes()));
-        System.out.println(r.getSW());
+            0x00, ISO7816.INS_SELECT, 0x04, 0x00, authaid.getBytes()));
+        System.out.println(String.format("0x%08X", r.getSW()));
         prettyOut(r.getData());
 
-        CommandAPDU c = new CommandAPDU(HexUtils.stringToBin("001B0000"));
-        r = channel.transmit(c);
-        System.out.println(r.getSW());
+        // 2) open secure channel
+        final GPSession gp = GPSession.discover(channel);
+
+        PlaintextKeys keyz;
+        keyz = PlaintextKeys.defaultKey();
+
+        final GPCardKeys keys = keyz;
+
+        EnumSet<APDUMode> mode = GPSession.defaultMode.clone();
+        mode.clear();
+        mode.add(APDUMode.fromString("mac"));
+        mode.add(APDUMode.fromString("enc"));
+        gp.openSecureChannel(keys, null, null, mode);
+
+        System.out.println("++++++++++++++++++++++++++++++++++");
+        // 3) Query security level
+        CommandAPDU cc = new CommandAPDU(HexUtils.stringToBin("001B0000"));
+        r = gp.transmit(cc);
+        System.out.println(String.format("0x%08X", r.getSW()));
         prettyOut(r.getData());
-
-        // gp = GPSession.discover(channel);
-
-        /*
-
-        gp = GlobalPlatform.discover(channel);
-
-        // Authenticate to the card
-        GPSessionKeyProvider keys =
-        PlaintextKeys.fromMasterKey(GPData.getDefaultKey()); EnumSet<APDUMode>
-        mode = GlobalPlatform.defaultMode.clone(); gp.openSecureChannel(keys,
-        null, 0, mode);
-
-        // Load and Install the cap file
-        install(instParams, true);
-        channel.close();
-        */
 
         System.out.println("--- end ---");
     }
