@@ -64,6 +64,11 @@ public class App
             0x00, ISO7816.INS_SELECT, 0x04, 0x00, authaid.getBytes()));
         System.out.println(String.format("0x%08X", r.getSW()));
         prettyOut(r.getData());
+        // call method to get security level of applet
+        CommandAPDU ccc = new CommandAPDU(HexUtils.stringToBin("001B0000"));
+        r = channel.transmit(ccc);
+        System.out.println(String.format("0x%08X", r.getSW()));
+        prettyOut(r.getData());
 
         // 2) open secure channel
         final GPSession gp = GPSession.discover(channel);
@@ -77,10 +82,11 @@ public class App
         mode.clear();
         mode.add(APDUMode.fromString("mac"));
         mode.add(APDUMode.fromString("enc"));
-        gp.openSecureChannel(keys, null, null, mode);
-
         System.out.println("++++++++++++++++++++++++++++++++++");
-        // 3) Query security level
+        gp.openSecureChannel(keys, null, null, mode);
+        System.out.println("++++++++++++++++++++++++++++++++++");
+
+        // 3) Query security level again
         CommandAPDU cc = new CommandAPDU(HexUtils.stringToBin("001B0000"));
         r = gp.transmit(cc);
         System.out.println(String.format("0x%08X", r.getSW()));
