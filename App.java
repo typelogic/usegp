@@ -88,7 +88,8 @@ public class App
 
         // 3) Query security level again
         CommandAPDU cc = new CommandAPDU(HexUtils.stringToBin("001B0000"));
-        r = gp.transmit(cc);
+        r = gp.transmit(cc); // 0x6E00
+        //r = channel.transmit(cc); // 0x6D00
         System.out.println(String.format("0x%08X", r.getSW()));
         prettyOut(r.getData());
 
